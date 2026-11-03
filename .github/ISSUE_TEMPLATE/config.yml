@@ -1,0 +1,2 @@
+# Applies to the web UI only; `gh` and the API do not enforce templates (see docs/git-workflow.md).
+blank_issues_enabled: false
