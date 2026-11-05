@@ -11,6 +11,14 @@
 - Keep tasks understandable from their explicit input and repository files, without another checkout, personal memory, or conversation history. Link to platform design and ADRs when they are required context.
 - Ask who else writes a shared resource before concurrency bites.
 
+### POC scope and complexity
+
+- Prefer the smallest implementation that meets the acceptance criteria. Preserve the stated security requirements.
+- **Establish deployment and usage status first.** Before proposing migration machinery, check what is deployed and what consumes it. If unknown, ask.
+- Do not add backward compatibility, staged migrations, rollback procedures, temporary resources or edge-case guards unless an existing consumer or explicit requirement needs them. When nothing consumes a resource, replace or delete it.
+- Do not add layers, abstractions, services or roles that no current task needs. Target-design ideas go into an issue, not the implementation.
+- Size research and reviews to the question: lead with the conclusion, one line per finding, detail only where the implementer needs it.
+
 ### Verify, don't guess
 
 - Never state a technical claim you have not checked. Read the file, run the command, fetch the doc.
