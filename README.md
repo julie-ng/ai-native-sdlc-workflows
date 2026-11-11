@@ -28,3 +28,75 @@ argo submit --from workflowtemplate/agent-smoke-test -n agents \
 | `model` | `openai/gpt-5.2-codex` | Vercel AI Gateway model ID passed as `GOOSE_MODEL` |
 
 The run succeeds when the step log shows the model's report of the smoke test output. Secrets are never passed as parameters: the image entrypoint reads them from `/mnt/agent-secrets`.
+
+### `foreman-test`
+
+[`templates/foreman-test.yaml`](templates/foreman-test.yaml) creates a platform-services run and two Secrets, `hmac-<workflow name>-planner` and `hmac-<workflow name>-coder`. Each contains `token`, `run-id` and `step-id` and is owned by the Workflow with `blockOwnerDeletion: false`. The script logs only the run ID, also exposed as output parameter `run-id`. Tokens never enter Argo outputs or parameters.
+
+Requires the deployed [trusted foreman infrastructure](https://github.com/julie-ng/ai-native-sdlc-infrastructure#trusted-foreman-step-19) and [run API](https://github.com/julie-ng/ai-native-sdlc-platform-services#trying-the-artifact-routes-locally). The foreman uses SA `foreman`, the CSI class `foreman-admin-token`, and a dedicated Kubernetes API token projection. Pod automount stays off; the executor uses `argo-executor`. The image is public `alpine/k8s:1.35.0`, pinned to its multi-architecture manifest digest; the [image build](https://github.com/alpine-docker/k8s/blob/master/Dockerfile) includes kubectl, curl and jq. Its runtime has not been exercised here.
+
+From the repository root, generate the ConfigMap from the script, lint, and apply both resources:
+
+```sh
+kubectl kustomize . > /tmp/foreman-manifests.yaml
+argo lint --offline /tmp/foreman-manifests.yaml
+kubectl apply -f /tmp/foreman-manifests.yaml
+argo submit --from workflowtemplate/foreman-test -n agents --watch --log
+```
+
+The ConfigMap has a stable name because its reference is nested inside an Argo template. Reapply after script changes, between runs. No automatic retries: a failed Secret creation fails the step, and any already-created Secret remains Workflow-owned until cleanup. Submit a new Workflow rather than retrying a partially completed foreman.
+
+For #7, reference `templateRef: {name: foreman-test, template: foreman}`. Its template-level identity, mounts and deadline travel with the reference; the caller must set its own Workflow deadline and TTL. Agent templates mount their own Secret, for example:
+
+```yaml
+volumes:
+  - name: hmac
+    secret:
+      secretName: "hmac-{{workflow.name}}-planner"
+```
+
+**Substitution verified by source inspection, not a cluster run:** Argo 4.1.6's [`substitutePodParams`](https://github.com/argoproj/argo-workflows/blob/v4.1.6/workflow/controller/workflowpod.go#L1002) replaces global variables across the serialized Pod, including volume `secretName`. The end-to-end run must still confirm the resulting pod contains the concrete Workflow name.
+
+**Executor mounts:** Argo 4.1.6's [`addOutputArtifactsVolumes`](https://github.com/argoproj/argo-workflows/blob/v4.1.6/workflow/controller/workflowpod.go#L1678) mirrors main mounts under `/mainctrfs`. The template's `podSpecPatch` removes the mirrored admin-token and foreman API-token mounts from `wait`. Azure's [skip-containers annotation](https://azure.github.io/azure-workload-identity/docs/topics/service-account-labels-and-annotations.html) also skips identity-token injection into `init` and `wait`. This targets the current executor layout; inspect the generated pod after Argo upgrades.
+
+Human-run acceptance checks, before the five-minute TTL expires (set `WF` to the submitted Workflow name):
+
+```sh
+WF=<workflow-name>
+# Only names, keys and ownership; never print Secret data.
+kubectl get secret -n agents "hmac-$WF-planner" "hmac-$WF-coder" -o json |
+  jq '.items[] | {name: .metadata.name, keys: (.data | keys), owners: .metadata.ownerReferences}'
+kubectl get workflow -n agents "$WF" -o jsonpath='{.metadata.uid}{"\n"}'
+# Check main alone has foreman-admin and kubernetes-api mounts;
+# wait retains its separate executor token mount, with no mirrored credentials.
+kubectl get pod -n agents -l "workflows.argoproj.io/workflow=$WF" -o json |
+  jq '.items[].spec | {automountServiceAccountToken, containers: [(.initContainers[]?, .containers[]) | {name, volumeMounts}]}'
+# After completion + TTL + garbage-collector processing: all three must disappear.
+kubectl wait -n agents --for=delete "workflow/$WF" --timeout=420s
+kubectl wait -n agents --for=delete "secret/hmac-$WF-planner" "secret/hmac-$WF-coder" --timeout=120s
+```
+
+Check owner UIDs match the Workflow UID and `blockOwnerDeletion` is false. Review workflow logs and outputs privately to confirm no credential values appear. Cluster API access, CSI identity, image execution, generated pod mounts and TTL garbage collection remain **unverified until the human acceptance run**.
+
+## Offline checks
+
+Requires Node.js, POSIX sh, curl, jq, kubectl (with Kustomize), and Argo CLI 4.1.6.
+
+```sh
+sh -n scripts/foreman.sh
+node --test tests/foreman.test.mjs
+kubectl kustomize . > /tmp/foreman-manifests.yaml
+argo lint --offline templates/
+argo lint --offline /tmp/foreman-manifests.yaml
+git diff --check
+```
+
+Tests use synthetic credentials and stub API/Secret creation to check success, HTTP failure, malformed or incomplete credentials, creation failure, cleanup, and log redaction. A local Kubernetes strategic merge checks executor credential-mount removal. These do not claim cluster behavior.
+
+## Decision log
+
+| Date | Decision and reasoning |
+| --- | --- |
+| 2026-11-11 | Deliver the foreman script through a Kustomize-generated ConfigMap for the initial release, keeping one script source. This is packaging, not an architecture decision. |
+| 2026-11-11 | Use the public digest-pinned `alpine/k8s:1.35.0` utility image independently of `agent-base`; the trusted step runs no model. |
+| 2026-11-11 | Remove Argo's mirrored credential mounts with a pod patch and skip Azure token injection into executor containers to keep foreman credentials in main. Verified against 4.1.6 source and local strategic merge; generated pod verification remains human-run. |

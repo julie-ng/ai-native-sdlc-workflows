@@ -1,0 +1,100 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: foreman-test
+  namespace: agents
+spec:
+  entrypoint: foreman
+  serviceAccountName: foreman
+  automountServiceAccountToken: false
+  executor:
+    serviceAccountName: argo-executor
+  activeDeadlineSeconds: 300
+  ttlStrategy:
+    secondsAfterCompletion: 300
+  templates:
+    # Reuse via templateRef: {name: foreman-test, template: foreman}.
+    - name: foreman
+      serviceAccountName: foreman
+      automountServiceAccountToken: false
+      executor:
+        serviceAccountName: argo-executor
+      activeDeadlineSeconds: 180
+      # Argo mirrors main mounts into wait; remove the credential copies after
+      # pod construction. The executor keeps its own argo-executor API token.
+      podSpecPatch: |
+        containers:
+          - name: wait
+            volumeMounts:
+              - mountPath: /mainctrfs/mnt/foreman-admin
+                $patch: delete
+              - mountPath: /mainctrfs/var/run/secrets/kubernetes.io/serviceaccount
+                $patch: delete
+      metadata:
+        annotations:
+          azure.workload.identity/skip-containers: "init;wait"
+        labels:
+          azure.workload.identity/use: "true"
+      outputs:
+        parameters:
+          - name: run-id
+            valueFrom:
+              path: /tmp/foreman-run-id
+      volumes:
+        - name: foreman-scripts
+          configMap:
+            name: foreman-scripts
+        - name: foreman-admin
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: foreman-admin-token
+        - name: kubernetes-api
+          projected:
+            sources:
+              - serviceAccountToken:
+                  path: token
+                  expirationSeconds: 600
+              - configMap:
+                  name: kube-root-ca.crt
+                  items:
+                    - key: ca.crt
+                      path: ca.crt
+              - downwardAPI:
+                  items:
+                    - path: namespace
+                      fieldRef:
+                        fieldPath: metadata.namespace
+      container:
+        # alpine/k8s:1.35.0, multi-architecture manifest digest.
+        image: alpine/k8s:1.35.0@sha256:18bc02c1e0df04451f4f9194eb7b7341c1165da5495459b52f85f72fb9545032
+        command: [/bin/sh, /scripts/foreman.sh]
+        env:
+          - name: WORKFLOW_NAME
+            value: "{{workflow.name}}"
+          - name: WORKFLOW_UID
+            value: "{{workflow.uid}}"
+          - name: WORKFLOW_NAMESPACE
+            value: "{{workflow.namespace}}"
+          - name: HOME
+            value: /tmp
+        volumeMounts:
+          - name: foreman-scripts
+            mountPath: /scripts
+            readOnly: true
+          - name: foreman-admin
+            mountPath: /mnt/foreman-admin
+            readOnly: true
+          - name: kubernetes-api
+            mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+            readOnly: true
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: [ALL]
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          seccompProfile:
+            type: RuntimeDefault
