@@ -30,10 +30,9 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run lint
-      - name: Install Argo and kubectl
+      - name: Install Argo
         env:
           ARGO_VERSION: v4.1.6
-          KUBECTL_VERSION: v1.35.0
         run: |
           cd "$(mktemp -d)"
           argo_release="https://github.com/argoproj/argo-workflows/releases/download/$ARGO_VERSION"
@@ -43,13 +42,21 @@ jobs:
           gunzip argo-linux-amd64.gz
           sudo install -m 0755 argo-linux-amd64 /usr/local/bin/argo
 
+      - name: Install kubectl
+        env:
+          KUBECTL_VERSION: v1.35.0
+        run: |
+          cd "$(mktemp -d)"
           kubectl_release="https://dl.k8s.io/release/$KUBECTL_VERSION/bin/linux/amd64"
           curl -fsSLO "$kubectl_release/kubectl"
           curl -fsSLO "$kubectl_release/kubectl.sha256"
           echo "$(cat kubectl.sha256)  kubectl" | sha256sum --check
           sudo install -m 0755 kubectl /usr/local/bin/kubectl
-      - name: Lint Argo templates and rendered ConfigMap bundle
+
+      - name: Lint Argo templates
+        run: argo lint --offline templates/
+
+      - name: Lint rendered ConfigMap bundle
         run: |
-          argo lint --offline templates/
           kubectl kustomize . > "$RUNNER_TEMP/foreman-manifests.yaml"
           argo lint --offline "$RUNNER_TEMP/foreman-manifests.yaml"
