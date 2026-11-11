@@ -50,9 +50,11 @@ prompt: |
        -H 'Content-Type: application/json' -d "$report")
      printf '%s' "$completed" | jq -e '.state == "uploaded"' > /dev/null
      printf 'Plan uploaded and reported\n'
+     touch /workspace/.plan-uploaded
 
      If any command fails, report that the plan transfer failed and stop. Never
-     claim upload success without the final uploaded-state confirmation.
+     claim upload success without the final uploaded-state confirmation. Create
+     /workspace/.plan-uploaded only at the end of that successful upload block.
 
   Never echo, print, or store HMAC credential values. Read only /mnt/hmac/token,
   /mnt/hmac/run-id and /mnt/hmac/step-id, only inline in the transfer commands

@@ -51,7 +51,11 @@ prompt: |
   3. Commit the coherent changes with git commit -S, push the task branch, and
      run gh pr create targeting main with a description linking the issue using
      Closes #<TASK_ISSUE>. Write the PR body to a file outside the checkout and
-     pass --body-file. Confirm the PR exists using gh pr view and report its URL.
+     pass --body-file. After confirming the PR, run this from the checkout:
+
+     gh pr view --json url -q .url > /workspace/.pr-url
+
+     Report the PR URL. Write /workspace/.pr-url only after confirming the PR.
      If a branch or PR already exists, stop and report it rather than overwrite
      remote work. The human developer reviews the PR and its Verified commits.
 

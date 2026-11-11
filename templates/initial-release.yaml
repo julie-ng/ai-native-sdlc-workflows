@@ -72,7 +72,7 @@ spec:
         workingDir: /workspace
         # Argo replaces ENTRYPOINT; invoke secret/GPG setup explicitly.
         command: [/usr/local/bin/agent-entrypoint]
-        args: [goose, run, --recipe, /recipes/planner.yaml]
+        args: [sh, -c, "goose run --recipe /recipes/planner.yaml && test -f /workspace/.plan-uploaded"]
         env:
           - name: TASK_REPOSITORY
             value: "{{workflow.parameters.repository}}"
@@ -91,7 +91,7 @@ spec:
           - name: GIT_USER_EMAIL
             value: me+goose@julie.io
         volumeMounts:
-          # Mount only this role recipe to avoid sibling recipe discovery.
+          # subPath avoids ConfigMap symlinks, which Goose refuses to open.
           - name: recipes
             mountPath: /recipes/planner.yaml
             subPath: planner.yaml
@@ -153,7 +153,7 @@ spec:
         workingDir: /workspace
         # Argo replaces ENTRYPOINT; invoke secret/GPG setup explicitly.
         command: [/usr/local/bin/agent-entrypoint]
-        args: [goose, run, --recipe, /recipes/coder.yaml]
+        args: [sh, -c, "goose run --recipe /recipes/coder.yaml && test -s /workspace/.pr-url"]
         env:
           - name: TASK_REPOSITORY
             value: "{{workflow.parameters.repository}}"
@@ -172,7 +172,7 @@ spec:
           - name: GIT_USER_EMAIL
             value: me+goose@julie.io
         volumeMounts:
-          # Mount only this role recipe to avoid sibling recipe discovery.
+          # subPath avoids ConfigMap symlinks, which Goose refuses to open.
           - name: recipes
             mountPath: /recipes/coder.yaml
             subPath: coder.yaml
