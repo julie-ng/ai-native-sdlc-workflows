@@ -8,11 +8,6 @@ configMapGenerator:
   - name: foreman-scripts
     files:
       - scripts/foreman.ts
-  - name: initial-release-scripts
-    files:
-      - scripts/agent-runtime.ts
-      - scripts/planner.ts
-      - scripts/coder.ts
   - name: initial-release-recipes
     files:
       - recipes/planner.yaml

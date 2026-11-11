@@ -53,9 +53,6 @@ spec:
               - mountPath: /mainctrfs/mnt/hmac
                 $patch: delete
       volumes:
-        - name: agent-scripts
-          configMap:
-            name: initial-release-scripts
         - name: recipes
           configMap:
             name: initial-release-recipes
@@ -75,7 +72,7 @@ spec:
         workingDir: /workspace
         # Argo replaces ENTRYPOINT; invoke secret/GPG setup explicitly.
         command: [/usr/local/bin/agent-entrypoint]
-        args: [node, /scripts/planner.ts]
+        args: [goose, run, --recipe, /recipes/planner.yaml]
         env:
           - name: TASK_REPOSITORY
             value: "{{workflow.parameters.repository}}"
@@ -94,9 +91,6 @@ spec:
           - name: GIT_USER_EMAIL
             value: me+goose@julie.io
         volumeMounts:
-          - name: agent-scripts
-            mountPath: /scripts
-            readOnly: true
           - name: recipes
             mountPath: /recipes
             readOnly: true
@@ -138,9 +132,6 @@ spec:
               - mountPath: /mainctrfs/mnt/hmac
                 $patch: delete
       volumes:
-        - name: agent-scripts
-          configMap:
-            name: initial-release-scripts
         - name: recipes
           configMap:
             name: initial-release-recipes
@@ -160,7 +151,7 @@ spec:
         workingDir: /workspace
         # Argo replaces ENTRYPOINT; invoke secret/GPG setup explicitly.
         command: [/usr/local/bin/agent-entrypoint]
-        args: [node, /scripts/coder.ts]
+        args: [goose, run, --recipe, /recipes/coder.yaml]
         env:
           - name: TASK_REPOSITORY
             value: "{{workflow.parameters.repository}}"
@@ -179,9 +170,6 @@ spec:
           - name: GIT_USER_EMAIL
             value: me+goose@julie.io
         volumeMounts:
-          - name: agent-scripts
-            mountPath: /scripts
-            readOnly: true
           - name: recipes
             mountPath: /recipes
             readOnly: true
