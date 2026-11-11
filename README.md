@@ -91,6 +91,8 @@ argo lint --offline /tmp/foreman-manifests.yaml
 git diff --check
 ```
 
+[CI](.github/workflows/ci.yml) runs `npm run lint` and Argo 4.1.6 offline lint on source templates and the rendered Kustomize bundle for pull requests to `main`, pushes to `main`, and manual runs.
+
 Use `npm run lint:fix` to apply style fixes. [`eslint.config.mjs`](eslint.config.mjs) requires braces for every conditional/loop body, one property per line in multi-property objects and TypeScript types, and one element per line in arrays with three or more elements or multiline elements. Short lists stay compact.
 
 ESLint checks code style; Argo lint and rendering check manifest structure only. The human developer’s cluster run verifies API calls, Secret creation, credential mounts and cleanup.
