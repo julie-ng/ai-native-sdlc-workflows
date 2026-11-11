@@ -80,16 +80,20 @@ Check owner UIDs match the Workflow UID and `blockOwnerDeletion` is false. Revie
 
 ## Offline checks
 
-Requires kubectl (with Kustomize) and Argo CLI 4.1.6. The human cluster checks above also use jq.
+Requires Node.js 24/npm for linting, kubectl (with Kustomize), and Argo CLI 4.1.6. The human cluster checks above also use jq. ESLint dependencies are development tooling only; the foreman runtime still needs no npm packages.
 
 ```sh
+npm ci
+npm run lint
 kubectl kustomize . > /tmp/foreman-manifests.yaml
 argo lint --offline templates/
 argo lint --offline /tmp/foreman-manifests.yaml
 git diff --check
 ```
 
-Offline lint and rendering check manifest structure only. The human developer’s cluster run verifies API calls, Secret creation, credential mounts and cleanup.
+Use `npm run lint:fix` to apply style fixes. [`eslint.config.mjs`](eslint.config.mjs) requires braces for every conditional/loop body, one property per line in multi-property objects and TypeScript types, and one element per line in arrays with three or more elements or multiline elements. Short lists stay compact.
+
+ESLint checks code style; Argo lint and rendering check manifest structure only. The human developer’s cluster run verifies API calls, Secret creation, credential mounts and cleanup.
 
 ## Decision log
 
@@ -99,3 +103,4 @@ Offline lint and rendering check manifest structure only. The human developer’
 | 2026-11-11 | Use dependency-free TypeScript on the shared Node 24 image pin, per human review preference: native fetch and type stripping replace shell, jq, curl and kubectl plumbing. |
 | 2026-11-11 | Remove Argo's mirrored credential mounts with a pod patch and skip Azure token injection into executor containers to keep foreman credentials in main. Checked against 4.1.6 source; generated pod verification remains human-run. |
 | 2026-11-11 | Name the reusable WorkflowTemplate `foreman` for #7, and remove mock tests per human review: the developer’s cluster run is the behavioral verification. |
+| 2026-11-11 | Add ESLint with Stylistic rules per human preference: require braces and expand object properties and longer arrays for review. `npm run lint` checks; `npm run lint:fix` applies fixes. Tooling is development-only. |
