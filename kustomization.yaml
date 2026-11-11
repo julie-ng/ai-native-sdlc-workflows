@@ -3,10 +3,20 @@ kind: Kustomization
 namespace: agents
 resources:
   - templates/foreman.yaml
+  - templates/initial-release.yaml
 configMapGenerator:
   - name: foreman-scripts
     files:
       - scripts/foreman.ts
+  - name: initial-release-scripts
+    files:
+      - scripts/agent-runtime.ts
+      - scripts/planner.ts
+      - scripts/coder.ts
+  - name: initial-release-recipes
+    files:
+      - recipes/planner.yaml
+      - recipes/coder.yaml
 generatorOptions:
   # The mount lives inside an Argo template, outside Kustomize's Pod references.
   disableNameSuffixHash: true

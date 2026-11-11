@@ -1,0 +1,204 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: initial-release
+  namespace: agents
+spec:
+  entrypoint: initial-release
+  serviceAccountName: planner
+  automountServiceAccountToken: false
+  executor:
+    serviceAccountName: argo-executor
+  securityContext:
+    fsGroup: 1000
+  activeDeadlineSeconds: 1020
+  ttlStrategy:
+    secondsAfterCompletion: 3600
+  arguments:
+    parameters:
+      - name: repository
+      - name: issue
+      - name: acr
+      - name: model
+        value: openai/gpt-5.2-codex
+  templates:
+    - name: initial-release
+      steps:
+        - - name: foreman
+            templateRef:
+              name: foreman
+              template: foreman
+        - - name: planner
+            template: planner
+        - - name: coder
+            template: coder
+    - name: planner
+      serviceAccountName: planner
+      automountServiceAccountToken: false
+      executor:
+        serviceAccountName: argo-executor
+      activeDeadlineSeconds: 300
+      metadata:
+        labels:
+          azure.workload.identity/use: "true"
+        annotations:
+          azure.workload.identity/skip-containers: "init;wait"
+      # Argo 4.1.6 mirrors main mounts into wait. Keep credentials in main.
+      podSpecPatch: |
+        containers:
+          - name: wait
+            volumeMounts:
+              - mountPath: /mainctrfs/mnt/agent-secrets
+                $patch: delete
+              - mountPath: /mainctrfs/mnt/hmac
+                $patch: delete
+      volumes:
+        - name: agent-scripts
+          configMap:
+            name: initial-release-scripts
+        - name: recipes
+          configMap:
+            name: initial-release-recipes
+        - name: workspace
+          emptyDir: {}
+        - name: agent-secrets
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: planner-secrets
+        - name: hmac
+          secret:
+            secretName: "hmac-{{workflow.name}}-planner"
+      container:
+        image: "{{workflow.parameters.acr}}/agent-base:latest"
+        workingDir: /workspace
+        # Argo replaces ENTRYPOINT; invoke secret/GPG setup explicitly.
+        command: [/usr/local/bin/agent-entrypoint]
+        args: [node, /scripts/planner.ts]
+        env:
+          - name: TASK_REPOSITORY
+            value: "{{workflow.parameters.repository}}"
+          - name: TASK_ISSUE
+            value: "{{workflow.parameters.issue}}"
+          - name: GOOSE_PROVIDER
+            value: vercel_ai_gateway
+          - name: GOOSE_MODEL
+            value: "{{workflow.parameters.model}}"
+          - name: GOOSE_MODE
+            value: auto
+          - name: GOOSE_TELEMETRY_ENABLED
+            value: "false"
+          - name: GIT_USER_NAME
+            value: julieio-goose
+          - name: GIT_USER_EMAIL
+            value: me+goose@julie.io
+        volumeMounts:
+          - name: agent-scripts
+            mountPath: /scripts
+            readOnly: true
+          - name: recipes
+            mountPath: /recipes
+            readOnly: true
+          - name: workspace
+            mountPath: /workspace
+          - name: agent-secrets
+            mountPath: /mnt/agent-secrets
+            readOnly: true
+          - name: hmac
+            mountPath: /mnt/hmac
+            readOnly: true
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: [ALL]
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          seccompProfile:
+            type: RuntimeDefault
+    - name: coder
+      serviceAccountName: coder
+      automountServiceAccountToken: false
+      executor:
+        serviceAccountName: argo-executor
+      activeDeadlineSeconds: 540
+      metadata:
+        labels:
+          azure.workload.identity/use: "true"
+        annotations:
+          azure.workload.identity/skip-containers: "init;wait"
+      # Argo 4.1.6 mirrors main mounts into wait. Keep credentials in main.
+      podSpecPatch: |
+        containers:
+          - name: wait
+            volumeMounts:
+              - mountPath: /mainctrfs/mnt/agent-secrets
+                $patch: delete
+              - mountPath: /mainctrfs/mnt/hmac
+                $patch: delete
+      volumes:
+        - name: agent-scripts
+          configMap:
+            name: initial-release-scripts
+        - name: recipes
+          configMap:
+            name: initial-release-recipes
+        - name: workspace
+          emptyDir: {}
+        - name: agent-secrets
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: coder-secrets
+        - name: hmac
+          secret:
+            secretName: "hmac-{{workflow.name}}-coder"
+      container:
+        image: "{{workflow.parameters.acr}}/agent-base:latest"
+        workingDir: /workspace
+        # Argo replaces ENTRYPOINT; invoke secret/GPG setup explicitly.
+        command: [/usr/local/bin/agent-entrypoint]
+        args: [node, /scripts/coder.ts]
+        env:
+          - name: TASK_REPOSITORY
+            value: "{{workflow.parameters.repository}}"
+          - name: TASK_ISSUE
+            value: "{{workflow.parameters.issue}}"
+          - name: GOOSE_PROVIDER
+            value: vercel_ai_gateway
+          - name: GOOSE_MODEL
+            value: "{{workflow.parameters.model}}"
+          - name: GOOSE_MODE
+            value: auto
+          - name: GOOSE_TELEMETRY_ENABLED
+            value: "false"
+          - name: GIT_USER_NAME
+            value: julieio-goose
+          - name: GIT_USER_EMAIL
+            value: me+goose@julie.io
+        volumeMounts:
+          - name: agent-scripts
+            mountPath: /scripts
+            readOnly: true
+          - name: recipes
+            mountPath: /recipes
+            readOnly: true
+          - name: workspace
+            mountPath: /workspace
+          - name: agent-secrets
+            mountPath: /mnt/agent-secrets
+            readOnly: true
+          - name: hmac
+            mountPath: /mnt/hmac
+            readOnly: true
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: [ALL]
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          seccompProfile:
+            type: RuntimeDefault
