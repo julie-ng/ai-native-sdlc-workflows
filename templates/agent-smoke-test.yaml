@@ -1,0 +1,60 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: agent-smoke-test
+  namespace: agents
+spec:
+  entrypoint: smoke-test
+  serviceAccountName: planner
+  # Executor identity, agents-pool scheduling and automountServiceAccountToken: false
+  # come from the controller workflowDefaults.
+  activeDeadlineSeconds: 600
+  ttlStrategy:
+    secondsAfterCompletion: 3600
+  arguments:
+    parameters:
+      # Registry host only, e.g. myregistry.azurecr.io. No default on purpose.
+      - name: acr
+      - name: model
+        # Vercel AI Gateway model ID
+        value: openai/gpt-6.1-sol
+  templates:
+    - name: smoke-test
+      # Step-level deadline, shorter than the workflow deadline.
+      activeDeadlineSeconds: 300
+      metadata:
+        labels:
+          azure.workload.identity/use: "true"
+      volumes:
+        - name: agent-secrets
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: planner-secrets
+      container:
+        image: "{{workflow.parameters.acr}}/agent-base:latest"
+        # Argo's command replaces the image ENTRYPOINT, so call the entrypoint
+        # explicitly. It maps /mnt/agent-secrets/* to environment variables.
+        command: [/usr/local/bin/agent-entrypoint]
+        args: [goose, run, --recipe, /recipes/smoke-test.yaml]
+        env:
+          - name: GOOSE_PROVIDER
+            value: vercel_ai_gateway
+          - name: GOOSE_MODEL
+            value: "{{workflow.parameters.model}}"
+          - name: GOOSE_MODE
+            value: auto
+          - name: GOOSE_TELEMETRY_ENABLED
+            value: "false"
+        volumeMounts:
+          - name: agent-secrets
+            mountPath: /mnt/agent-secrets
+            readOnly: true
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: [ALL]
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
