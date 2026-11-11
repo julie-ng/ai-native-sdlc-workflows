@@ -17,7 +17,7 @@ spec:
       - name: acr
       - name: model
         # Vercel AI Gateway model ID
-        value: openai/gpt-6.1-sol
+        value: openai/gpt-5.2-codex
   templates:
     - name: smoke-test
       # Step-level deadline, shorter than the workflow deadline.

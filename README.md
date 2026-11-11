@@ -18,13 +18,13 @@ Start a run:
 ```sh
 argo submit --from workflowtemplate/agent-smoke-test -n agents \
   -p acr=<registry>.azurecr.io \
-  -p model=openai/gpt-6.1-sol \
+  -p model=openai/gpt-5.2-codex \
   --watch --log
 ```
 
 | Parameter | Default | Description |
 | --- | --- | --- |
 | `acr` | none, required | Registry host, e.g. `myregistry.azurecr.io` |
-| `model` | `openai/gpt-6.1-sol` | Vercel AI Gateway model ID passed as `GOOSE_MODEL` |
+| `model` | `openai/gpt-5.2-codex` | Vercel AI Gateway model ID passed as `GOOSE_MODEL` |
 
 The run succeeds when the step log shows the model's report of the smoke test output. Secrets are never passed as parameters: the image entrypoint reads them from `/mnt/agent-secrets`.
