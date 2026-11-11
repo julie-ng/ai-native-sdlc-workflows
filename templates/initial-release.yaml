@@ -91,8 +91,10 @@ spec:
           - name: GIT_USER_EMAIL
             value: me+goose@julie.io
         volumeMounts:
+          # Mount only this role recipe to avoid sibling recipe discovery.
           - name: recipes
-            mountPath: /recipes
+            mountPath: /recipes/planner.yaml
+            subPath: planner.yaml
             readOnly: true
           - name: workspace
             mountPath: /workspace
@@ -170,8 +172,10 @@ spec:
           - name: GIT_USER_EMAIL
             value: me+goose@julie.io
         volumeMounts:
+          # Mount only this role recipe to avoid sibling recipe discovery.
           - name: recipes
-            mountPath: /recipes
+            mountPath: /recipes/coder.yaml
+            subPath: coder.yaml
             readOnly: true
           - name: workspace
             mountPath: /workspace
